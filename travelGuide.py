@@ -5,7 +5,7 @@ from langchain.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 # Retrieve the API key
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 if not GOOGLE_API_KEY:
     st.error("Google API key is missing. Please set it in the .env file.")
     st.stop()
