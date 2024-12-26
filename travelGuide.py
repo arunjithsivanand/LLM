@@ -36,9 +36,10 @@ prompt_template = PromptTemplate(
 )
 
 # User inputs
-city = st.text_input("Enter the city:")
+city = st.text_input("Enter the country or city:")
 month = st.text_input("Enter the month of travel:")
-language = st.text_input("Enter the language:")
+month = st.selectbox("Month:", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"])
+language = st.text_input("Enter the language:", ["English"])
 budget = st.selectbox("Travel Budget:", ["High", "Mid", "Low"])
 
 # Submit button logic
