@@ -53,8 +53,8 @@ budget = st.selectbox("Travel Budget", ["High", "Mid", "Low"])
 # Generate Travel Guide
 if st.button("Submit"):
     if city and month and language and budget:
-    response = llm.invoke(prompt_Template.format(city=city,
+        response = llm.invoke(prompt_Template.format(city=city,
                                                  month=month,
                                                  language=language,
                                                  budget=budget))
-    st.write(response.content)
+        st.write(response.content)
