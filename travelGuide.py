@@ -29,7 +29,7 @@ prompt_template = PromptTemplate(
         "If you’re visiting in {month}, here is what you can do:\n"
         "1. Must-visit attractions.\n"
         "2. Local cuisine you must try.\n"
-        "3. Useful phrases in {city} {language}.\n"
+        "3. {city} language.\n"
         "4. Tips for traveling on a {budget} budget.\n\n"
         "Enjoy your trip!"
     ),
@@ -37,8 +37,8 @@ prompt_template = PromptTemplate(
 
 # User inputs
 city = st.text_input("Enter the country or city:")
-month = st.selectbox("Month:", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"])
-language = st.selectbox("Enter the language:", ["English"])
+month = st.selectbox("Select a Month:", ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"])
+language = st.selectbox("Select the language:", ["English"])
 budget = st.selectbox("Travel Budget:", ["High", "Mid", "Low"])
 
 # Submit button logic
