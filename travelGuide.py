@@ -29,7 +29,7 @@ prompt_template = PromptTemplate(
         "If you’re visiting in {month}, here is what you can do:\n"
         "1. Must-visit attractions.\n"
         "2. Local cuisine you must try.\n"
-        "3. Useful phrases in {language}.\n"
+        "3. Useful phrases in {city} {language}.\n"
         "4. Tips for traveling on a {budget} budget.\n\n"
         "Enjoy your trip!"
     ),
