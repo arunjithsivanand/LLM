@@ -4,9 +4,6 @@ import streamlit as st
 from langchain.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-# Load environment variables
-load_dotenv()
-
 # Retrieve the API key
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 if not GOOGLE_API_KEY:
