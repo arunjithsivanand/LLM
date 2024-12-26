@@ -1,4 +1,3 @@
-from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 import streamlit as st
 from langchain_google_genai import  ChatGoogleGenerativeAI
