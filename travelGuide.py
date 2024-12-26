@@ -21,40 +21,37 @@ llm = ChatGoogleGenerativeAI(
     max_output_tokens=4096,
 )
 
-# Define the Prompt Template
+# Define the prompt template
 prompt_template = PromptTemplate(
     input_variables=["city", "month", "language", "budget"],
-    template="""Welcome to the {city} travel guide!
-    If you’re visiting in {month}, here is what you can do:
-    1. Must-Visit attractions
-    2. Local Cuisine you must try.
-    3. Useful phrases in {language}
-    4. Tips for traveling on a {budget} budget
-
-Enjoy your trip
-
-Rules to follow : 
-1. Always Generate the guide in the language{language} provided by the user.
-2. Be precise with the response and only mention the below:
-    1. Must-Visit attractions
-    2. Local Cuisine you must try.
-    3. Useful phrases in {language}
-    4. Tips for traveling on a {budget} budget
-!!"""
+    template=(
+        "Welcome to the {city} travel guide!\n"
+        "If you’re visiting in {month}, here is what you can do:\n"
+        "1. Must-visit attractions.\n"
+        "2. Local cuisine you must try.\n"
+        "3. Useful phrases in {language}.\n"
+        "4. Tips for traveling on a {budget} budget.\n\n"
+        "Enjoy your trip!"
+    ),
 )
 
-# User Inputs
-city = st.text_input("Enter the city")
-month = st.text_input("Enter the month of travel")
-language = st.text_input("Enter the language")
-budget = st.selectbox("Travel Budget", ["High", "Mid", "Low"])
+# User inputs
+city = st.text_input("Enter the city:")
+month = st.text_input("Enter the month of travel:")
+language = st.text_input("Enter the language:")
+budget = st.selectbox("Travel Budget:", ["High", "Mid", "Low"])
 
-
-# Generate Travel Guide
+# Submit button logic
 if st.button("Submit"):
     if city and month and language and budget:
-        response = llm.invoke(prompt_Template.format(city=city,
-                                                 month=month,
-                                                 language=language,
-                                                 budget=budget))
-        st.write(response.content)
+        # Generate the response using the LLM
+        prompt = prompt_template.format(
+            city=city, month=month, language=language, budget=budget
+        )
+        response = llm.invoke(prompt)
+        if response and hasattr(response, "content"):
+            st.write(response.content)
+        else:
+            st.error("Failed to fetch a response. Please check your API key or inputs.")
+    else:
+        st.warning("Please fill in all the fields before submitting.")
