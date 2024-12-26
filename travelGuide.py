@@ -31,7 +31,16 @@ prompt_template = PromptTemplate(
     3. Useful phrases in {language}
     4. Tips for traveling on a {budget} budget
 
-Enjoy your trip!!"""
+Enjoy your trip
+
+Rules to follow : 
+1. Always Generate the guide in the language{language} provided by the user.
+2. Be precise with the response and only mention the below:
+    1. Must-Visit attractions
+    2. Local Cuisine you must try.
+    3. Useful phrases in {language}
+    4. Tips for traveling on a {budget} budget
+!!"""
 )
 
 # User Inputs
