@@ -1,44 +1,55 @@
-from langchain_core.prompts import ChatPromptTemplate
-import streamlit as st
-from langchain_google_genai import  ChatGoogleGenerativeAI
-import base64
+from dotenv import load_dotenv
 import os
+import streamlit as st
+from langchain.prompts import PromptTemplate
+from langchain_google_genai import ChatGoogleGenerativeAI
 
+# Load environment variables
+load_dotenv()
 
-def encode_image(image_file):
-    # with open(image_path, "rb") as image_file:
-        return base64.b64encode(image_file.read()).decode()
-
-
+# Retrieve the API key
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+if not GOOGLE_API_KEY:
+    st.error("Google API key is missing. Please set it in the .env file.")
+    st.stop()
 
-llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-exp", api_key=GOOGLE_API_KEY)
+# Initialize Streamlit App
+st.title("Travel Guide")
 
-prompt = ChatPromptTemplate.from_messages(
-    [
-        ("system", "You are a helpful assistant that can describe images."),
-        (
-            "human",
-            [
-                {"type": "text", "text": "{input}"},
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:image/jpeg;base64,""{image}",
-                        "detail": "low",
-                    },
-                },
-            ],
-        ),
-    ]
+# Initialize LLM
+llm = ChatGoogleGenerativeAI(
+    model="gemini-2.0-flash-exp",
+    api_key=GOOGLE_API_KEY,
+    temperature=0,
+    max_output_tokens=4096,
 )
 
-chain = prompt | llm
+# Define the Prompt Template
+prompt_template = PromptTemplate(
+    input_variables=["city", "month", "language", "budget"],
+    template="""Welcome to the {city} travel guide!
+    If you’re visiting in {month}, here is what you can do:
+    1. Must-Visit attractions
+    2. Local Cuisine you must try.
+    3. Useful phrases in {language}
+    4. Tips for traveling on a {budget} budget
 
-uploaded_file = st.file_uploader("Upload your image", type = ["jpg","png"])
-question =st.text_input("Enter the Question")
-if question:
-    image = encode_image(uploaded_file)
-    response = chain.invoke({"input": question, "image": image})
-    # Corrected line: Use st.write to display the response content
-    st.write(response.content)
+Enjoy your trip!!"""
+)
+
+# User Inputs
+city = st.text_input("Enter the city")
+month = st.text_input("Enter the month of travel")
+language = st.text_input("Enter the language")
+budget = st.selectbox("Travel Budget", ["High", "Mid", "Low"])
+
+# Generate Travel Guide
+if city and month and language and budget:
+    try:
+        response = llm.invoke(
+            prompt_template.format(city=city, month=month, language=language, budget=budget)
+        )
+        st.write("### Your Travel Guide:")
+        st.write(response.content)
+    except Exception as e:
+        st.error(f"An error occurred: {e}")
