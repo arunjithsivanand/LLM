@@ -1,9 +1,7 @@
-python-dotenv
-openai
-langchain-openai
-langchain
-langchain-google-genai
-langchain-community
-streamlit
-pandas
-numpy
+python-dotenv == 1.0.0
+langchain-google-genai == 0.1.0
+langchain == 0.2.1
+langchain_community==0.2.1
+langchain_core==0.2.3
+langchain-openai==0.1.7
+streamlit==1.35.0
