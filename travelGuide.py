@@ -39,6 +39,7 @@ city = st.text_input("Enter the city")
 month = st.text_input("Enter the month of travel")
 language = st.text_input("Enter the language")
 budget = st.selectbox("Travel Budget", ["High", "Mid", "Low"])
+generate_button = st.button("Generate Travel Guide")
 
 # Generate Travel Guide
 if city and month and language and budget:
