@@ -5,3 +5,5 @@ langchain
 langchain-google-genai
 langchain-community
 streamlit
+pandas
+numpy
