@@ -53,11 +53,8 @@ budget = st.selectbox("Travel Budget", ["High", "Mid", "Low"])
 # Generate Travel Guide
 if st.button("Submit"):
     if city and month and language and budget:
-        try:
-            response = llm.invoke(
-                prompt_template.format(city=city, month=month, language=language, budget=budget)
-            )
-            st.write("### Your Travel Guide:")
-            st.write(response.content)
-        except Exception as e:
-            st.error(f"An error occurred: {e}")
+    response = llm.invoke(prompt_Template.format(city=city,
+                                                 month=month,
+                                                 language=language,
+                                                 budget=budget))
+    st.write(response.content)
