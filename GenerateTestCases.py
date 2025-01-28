@@ -3,6 +3,7 @@ import pandas as pd
 from io import StringIO
 import re
 import os
+import hashlib
 import streamlit as st
 from langchain.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -18,13 +19,51 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# Initialize LLM once at startup
+@st.cache_resource
+def initialize_llm():
+    return ChatGoogleGenerativeAI(
+        model="gemini-pro",  # Using faster model
+        temperature=0.3,
+        max_output_tokens=2048,  # Reduced token limit
+        top_p=0.95,
+        top_k=40,
+    )
+
+# Cache test case generation based on input parameters
+@st.cache_data(ttl=3600)  # Cache for 1 hour
+def generate_test_cases_cached(module, acceptance_criteria, scenario_type):
+    try:
+        llm = initialize_llm()
+        prompt = f"""Create 3 test cases for:
+Module: {module}
+Acceptance Criteria: {acceptance_criteria}
+Scenario Type: {scenario_type}
+
+Format each test case as:
+Test Case ID: TC-XXX
+Description: [brief description]
+Pre-conditions: [pre-conditions]
+Steps: [numbered steps]
+Expected Results: [expected outcome]
+Tags: [relevant tags]
+
+Be concise and specific."""
+        
+        response = llm.invoke(prompt)
+        return response.content if response and hasattr(response, "content") else None
+    except Exception as e:
+        return f"Error: {str(e)}"
+
 @st.cache_data
 def parse_test_cases(text):
+    if not text or "Error:" in text:
+        return []
+        
     test_cases = []
     current_case = {}
     
-    lines = text.split('\n')
-    for line in lines:
+    for line in text.split('\n'):
         line = line.strip()
         if not line:
             if current_case:
@@ -32,7 +71,7 @@ def parse_test_cases(text):
                 current_case = {}
             continue
 
-        if line.startswith(('Test Case ID:', 'TC-', '#')):
+        if line.startswith(('Test Case ID:', 'TC-')):
             if current_case:
                 test_cases.append(current_case)
             current_case = {'Test Case ID': line.split(':', 1)[-1].strip()}
@@ -40,67 +79,24 @@ def parse_test_cases(text):
             key, value = line.split(':', 1)
             key = key.strip()
             value = value.strip()
-
-            if 'description' in key.lower():
-                current_case['Description'] = value
-            elif 'pre-condition' in key.lower():
-                current_case['Pre-conditions'] = value
-            elif 'step' in key.lower():
-                current_case['Steps'] = value
-            elif 'expected' in key.lower():
-                current_case['Expected Results'] = value
-            elif 'post-condition' in key.lower():
-                current_case['Post-conditions'] = value
-            elif 'tag' in key.lower():
-                current_case['Tags'] = value
+            
+            key_map = {
+                'description': 'Description',
+                'pre-condition': 'Pre-conditions',
+                'step': 'Steps',
+                'expected': 'Expected Results',
+                'post-condition': 'Post-conditions',
+                'tag': 'Tags'
+            }
+            
+            for k, v in key_map.items():
+                if k in key.lower():
+                    current_case[v] = value
+                    break
 
     if current_case:
         test_cases.append(current_case)
     return test_cases
-
-@st.cache_resource
-def get_llm():
-    return ChatGoogleGenerativeAI(
-        model="gemini-2.0-flash-exp",
-        temperature=0,
-        max_output_tokens=4096,
-    )
-
-@st.cache_data
-def get_prompt_template():
-    return PromptTemplate(
-        input_variables=["Module", "AcceptanceCriteria", "ScenarioType"],
-        template=(
-            "Generate test cases based on the following:\n"
-            "Module: {Module}\n"
-            "Acceptance Criteria: {AcceptanceCriteria}\n"
-            "Scenario Type: {ScenarioType}\n\n"
-            "Output each test case in this exact format:\n"
-            "Test Case ID: TC-XXX\n"
-            "Description: [Test case description]\n"
-            "Pre-conditions: [List pre-conditions]\n"
-            "Steps: [Numbered steps to execute]\n"
-            "Expected Results: [Expected outcome]\n"
-            "Post-conditions: [List post-conditions]\n"
-            "Tags: [Relevant tags]\n\n"
-            "Generate at least 3 test cases, each separated by a blank line."
-        ),
-    )
-
-def generate_test_cases(_module, _acceptance_criteria, _scenario_type):
-    try:
-        llm = get_llm()
-        prompt_template = get_prompt_template()
-        prompt = prompt_template.format(
-            Module=_module,
-            AcceptanceCriteria=_acceptance_criteria,
-            ScenarioType=_scenario_type
-        )
-        response = llm.invoke(prompt)
-        return response.content if response and hasattr(response, "content") else None
-    except Exception as e:
-        st.error(f"Error generating test cases: {str(e)}")
-        return None
 
 def create_download_button(df, module_name):
     csv_buffer = StringIO()
@@ -118,13 +114,13 @@ def create_download_button(df, module_name):
 
 def main():
     st.markdown("""
-        <h1>🧪 Test Case Generator</h1>
-        <p style='font-size: 1.2em; color: #666; margin-bottom: 2rem;'>
-            Generate test cases quickly and download as CSV
+        <h1>🧪 Quick Test Case Generator</h1>
+        <p style='font-size: 1.2em; color: #666; margin-bottom: 1rem;'>
+            Generate test cases instantly
         </p>
     """, unsafe_allow_html=True)
 
-    # Input Section
+    # Input Section with more compact layout
     col1, col2 = st.columns([2, 1])
     
     with col1:
@@ -144,14 +140,16 @@ def main():
     with col2:
         scenario_type = st.selectbox(
             "Scenario Type",
-            ["All Scenarios", "Positive Scenarios", "Negative Scenarios"],
+            ["Positive Scenarios", "Negative Scenarios", "All Scenarios"],
+            index=0,  # Default to positive scenarios
             key="scenario_type_input"
         )
         
         generate_button = st.button(
-            "🚀 Generate Test Cases",
+            "🚀 Generate",
             key="generate_button",
-            use_container_width=True
+            use_container_width=True,
+            type="primary"
         )
 
     # Results Section
@@ -160,34 +158,37 @@ def main():
             st.warning("Please fill in all required fields.")
             return
 
-        with st.spinner("Generating test cases..."):
-            test_cases = generate_test_cases(module, acceptance_criteria, scenario_type)
+        # Show a placeholder for results immediately
+        results_placeholder = st.empty()
+        download_placeholder = st.empty()
+        
+        with st.spinner(""):  # Empty spinner text for cleaner look
+            # Generate test cases with caching
+            test_cases = generate_test_cases_cached(module, acceptance_criteria, scenario_type)
             
-            if test_cases:
-                # Store in session state for reuse
-                st.session_state.last_test_cases = test_cases
-                st.session_state.last_module = module
-                
-                # Display results in a clean format
-                with st.expander("View Generated Test Cases", expanded=True):
-                    st.text_area(
-                        "Generated Test Cases",
-                        value=test_cases,
-                        height=300,
-                        key="results",
-                        disabled=True
-                    )
-                
-                # Create DataFrame and download button
+            if test_cases and "Error:" not in test_cases:
+                # Parse and create DataFrame
                 parsed_cases = parse_test_cases(test_cases)
                 if parsed_cases:
                     df = pd.DataFrame(parsed_cases)
-                    create_download_button(df, module)
                     
-                    # Display summary
-                    st.success(f"✅ Generated {len(parsed_cases)} test cases successfully!")
+                    # Update UI with results
+                    with results_placeholder.expander("View Generated Test Cases", expanded=True):
+                        st.text_area(
+                            "",  # No label needed
+                            value=test_cases,
+                            height=200,
+                            key="results",
+                            disabled=True
+                        )
+                    
+                    with download_placeholder:
+                        create_download_button(df, module)
+                        st.success(f"Generated {len(parsed_cases)} test cases")
                 else:
-                    st.error("Failed to parse test cases into CSV format.")
+                    st.error("No valid test cases generated. Please try again.")
+            else:
+                st.error(test_cases if "Error:" in str(test_cases) else "Failed to generate test cases.")
 
 if __name__ == "__main__":
     main()
