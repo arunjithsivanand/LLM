@@ -15,7 +15,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Initialize model with simpler configuration
 @st.cache_resource
 def get_model():
     return genai.GenerativeModel('gemini-pro')
@@ -63,10 +62,8 @@ def main():
         <h1>🧪 Quick Test Case Generator</h1>
     """, unsafe_allow_html=True)
 
-    # Compact input form
     module = st.text_input("Module Name", key="module_input")
     
-    # Two-column layout for criteria and type
     col1, col2 = st.columns([3, 1])
     
     with col1:
@@ -88,9 +85,10 @@ def main():
     # Initialize session state
     if 'test_cases' not in st.session_state:
         st.session_state.test_cases = None
+        st.session_state.parsed_cases = None
         st.session_state.df = None
+        st.session_state.display_count = 0
 
-    # Generate button
     if st.button("Generate Test Cases", type="primary", use_container_width=True):
         if not module or not criteria:
             st.warning("Please fill in both Module Name and Acceptance Criteria.")
@@ -98,8 +96,6 @@ def main():
 
         try:
             model = get_model()
-            
-            # Simple prompt for faster generation
             prompt = f"""
 Create 3 quick {test_type.lower()} test cases for:
 Module: {module}
@@ -115,11 +111,8 @@ Tags: relevant tags
 
 Skip post-conditions. Keep each test case short and focused."""
 
-            # Show immediate feedback
             with st.status("Generating test cases...", expanded=True) as status:
                 st.write("🔄 Starting generation...")
-                
-                # Generate test cases
                 response = model.generate_content(
                     prompt,
                     generation_config=genai.types.GenerationConfig(
@@ -133,14 +126,13 @@ Skip post-conditions. Keep each test case short and focused."""
                 if response:
                     test_cases = response.text
                     st.session_state.test_cases = test_cases
-                    
-                    # Parse test cases
                     st.write("✨ Parsing results...")
                     parsed_cases = parse_test_cases(test_cases)
                     
                     if parsed_cases:
-                        df = pd.DataFrame(parsed_cases)
-                        st.session_state.df = df
+                        st.session_state.parsed_cases = parsed_cases
+                        st.session_state.df = pd.DataFrame(parsed_cases)
+                        st.session_state.display_count = 3  # Start by displaying 3 cases
                         status.update(label="✅ Generation Complete!", state="complete")
                     else:
                         status.update(label="❌ Parsing failed", state="error")
@@ -151,22 +143,25 @@ Skip post-conditions. Keep each test case short and focused."""
             st.error(f"An error occurred: {str(e)}")
             return
 
-    # Show results if available
-    if st.session_state.test_cases:
+    # Display incrementally
+    if st.session_state.parsed_cases:
+        total_cases = len(st.session_state.parsed_cases)
+        display_count = st.session_state.display_count
+
         col1, col2 = st.columns([2, 1])
-        
+
         with col1:
-            with st.expander("View Generated Test Cases", expanded=True):
-                st.text_area(
-                    "",
-                    value=st.session_state.test_cases,
-                    height=200,
-                    disabled=True
-                )
-        
+            st.subheader("Generated Test Cases")
+            for i, case in enumerate(st.session_state.parsed_cases[:display_count], start=1):
+                with st.expander(f"Test Case {i}", expanded=False):
+                    st.write(case)
+
+            if display_count < total_cases:
+                if st.button("Load More Test Cases", key="load_more"):
+                    st.session_state.display_count += 3  # Increment by 3
+
         with col2:
             if st.session_state.df is not None:
-                # Create download button
                 csv = st.session_state.df.to_csv(index=False)
                 st.download_button(
                     "📥 Download CSV",
@@ -175,8 +170,5 @@ Skip post-conditions. Keep each test case short and focused."""
                     "text/csv",
                     use_container_width=True
                 )
-                
-                st.success(f"Generated {len(st.session_state.df)} test cases")
 
-if __name__ == "__main__":
-    main()
+                st.success(f"Generated {total_cases} test cases")
