@@ -1,12 +1,11 @@
 from dotenv import load_dotenv
 import pandas as pd
 from io import StringIO
-import re
 import os
+import threading
 import streamlit as st
 from langchain.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
-import signal
 
 # Load environment variables
 load_dotenv()
@@ -22,11 +21,6 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Timeout handler
-def timeout_handler(signum, frame):
-    raise TimeoutError("Test case generation timed out.")
-
-# Parse test cases into structured format
 @st.cache_data
 def parse_test_cases(text):
     test_cases = []
@@ -68,16 +62,14 @@ def parse_test_cases(text):
 
     return test_cases
 
-# Initialize LLM
 @st.cache_resource
 def get_llm():
     return ChatGoogleGenerativeAI(
         model="gemini-2.0-flash-exp",
         temperature=0,
-        max_output_tokens=2048  # Reduced token limit for faster generation
+        max_output_tokens=2048
     )
 
-# Prompt template
 @st.cache_data
 def get_prompt_template():
     return PromptTemplate(
@@ -99,7 +91,6 @@ def get_prompt_template():
         ),
     )
 
-# Generate test cases
 @st.cache_data
 def generate_test_cases(module, acceptance_criteria, scenario_type):
     llm = get_llm()
@@ -109,20 +100,28 @@ def generate_test_cases(module, acceptance_criteria, scenario_type):
         AcceptanceCriteria=acceptance_criteria,
         ScenarioType=scenario_type
     )
+
+    result = {"response": None, "error": None}
+
+    def invoke_llm():
+        try:
+            response = llm.invoke(prompt)
+            result["response"] = response.content if response and hasattr(response, "content") else None
+        except Exception as e:
+            result["error"] = str(e)
+
+    thread = threading.Thread(target=invoke_llm)
+    thread.start()
+    thread.join(timeout=30)
+
+    if thread.is_alive():
+        return "TimeoutError: The request took too long to process. Please try again with simpler inputs."
     
-    # Set timeout
-    signal.signal(signal.SIGALRM, timeout_handler)
-    signal.alarm(30)  # 30-second timeout
+    if result["error"]:
+        return f"Error: {result['error']}"
 
-    try:
-        response = llm.invoke(prompt)
-        signal.alarm(0)  # Cancel timeout
-        return response.content if response and hasattr(response, "content") else None
-    except TimeoutError:
-        st.error("Test case generation timed out. Please try again with simpler inputs.")
-        return None
+    return result["response"]
 
-# Export data to CSV
 def export_to_csv(df, module_name):
     csv_buffer = StringIO()
     df.to_csv(csv_buffer, index=False)
@@ -136,7 +135,6 @@ def export_to_csv(df, module_name):
         key="download_button"
     )
 
-# Render the header section
 def render_header():
     st.markdown("""
         <h1>🧪 Advanced Test Case Generator</h1>
@@ -145,7 +143,6 @@ def render_header():
         </p>
     """, unsafe_allow_html=True)
 
-# Input section
 def input_section():
     col1, col2, col3 = st.columns([1, 1, 1])
 
@@ -179,14 +176,12 @@ def input_section():
     
     return module, scenario_type, acceptance_criteria
 
-# Main function
 def main():
     if 'generation_requested' not in st.session_state:
         st.session_state.generation_requested = False
 
     render_header()
 
-    # Get inputs
     module, scenario_type, acceptance_criteria = input_section()
 
     if st.button("Generate Test Cases", key="generate_button"):
@@ -204,7 +199,7 @@ def main():
                     st.session_state.scenario_type
                 )
                 
-                if test_cases:
+                if test_cases and not test_cases.startswith("Error"):
                     st.write("### Generated Test Cases:")
                     st.write(test_cases)
 
@@ -214,6 +209,8 @@ def main():
                         export_to_csv(df, st.session_state.module)
                     else:
                         st.error("Failed to parse test cases. Please check the generated format.")
+                else:
+                    st.error(test_cases)
         else:
             st.warning("Please fill in all required fields.")
 
