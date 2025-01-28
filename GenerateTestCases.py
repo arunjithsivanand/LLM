@@ -3,6 +3,7 @@ import pandas as pd
 from io import StringIO
 import re
 import os
+import time
 import streamlit as st
 from langchain.prompts import PromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -17,6 +18,10 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+
+# Add timeout settings
+GENERATION_TIMEOUT = 60  # seconds
+CHUNK_SIZE = 2  # number of scenarios to generate per chunk
 
 @st.cache_data
 def parse_test_cases(text):
@@ -69,26 +74,81 @@ def get_llm():
         max_output_tokens=4096,
     )
 
-@st.cache_data
-def get_prompt_template():
-    return PromptTemplate(
-        input_variables=["Module", "AcceptanceCriteria", "ScenarioType"],
-        template=(
-            "Generate detailed test cases based on the following:\n"
-            "Module: {Module}\n"
-            "Acceptance Criteria: {AcceptanceCriteria}\n"
-            "Scenario Type: {ScenarioType}\n\n"
-            "Output each test case in this exact format:\n"
-            "Test Case ID: TC-XXX\n"
-            "Description: [Test case description]\n"
-            "Pre-conditions: [List pre-conditions]\n"
-            "Steps: [Numbered steps to execute]\n"
-            "Expected Results: [Expected outcome]\n"
-            "Post-conditions: [List post-conditions]\n"
-            "Tags: [Relevant tags]\n\n"
-            "Generate multiple test cases, with each separated by a blank line."
-        ),
+def get_prompt_template(chunk_number=None):
+    base_template = (
+        "Generate {chunk_size} detailed test cases based on the following:\n"
+        "Module: {Module}\n"
+        "Acceptance Criteria: {AcceptanceCriteria}\n"
+        "Scenario Type: {ScenarioType}\n"
     )
+    
+    if chunk_number is not None:
+        base_template += f"\nGenerate different test cases from previous chunks. This is chunk {chunk_number}.\n"
+    
+    base_template += (
+        "\nOutput each test case in this exact format:\n"
+        "Test Case ID: TC-XXX\n"
+        "Description: [Test case description]\n"
+        "Pre-conditions: [List pre-conditions]\n"
+        "Steps: [Numbered steps to execute]\n"
+        "Expected Results: [Expected outcome]\n"
+        "Post-conditions: [List post-conditions]\n"
+        "Tags: [Relevant tags]\n\n"
+    )
+    
+    return PromptTemplate(
+        input_variables=["Module", "AcceptanceCriteria", "ScenarioType", "chunk_size"],
+        template=base_template,
+    )
+
+def generate_test_cases_in_chunks(_module, _acceptance_criteria, _scenario_type, num_chunks=3):
+    llm = get_llm()
+    all_test_cases = []
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    
+    try:
+        for i in range(num_chunks):
+            status_text.text(f"Generating chunk {i+1}/{num_chunks}...")
+            
+            prompt_template = get_prompt_template(chunk_number=i+1)
+            prompt = prompt_template.format(
+                Module=_module,
+                AcceptanceCriteria=_acceptance_criteria,
+                ScenarioType=_scenario_type,
+                chunk_size=CHUNK_SIZE
+            )
+            
+            # Add timeout handling
+            start_time = time.time()
+            while True:
+                try:
+                    response = llm.invoke(prompt)
+                    if response and hasattr(response, "content"):
+                        all_test_cases.append(response.content)
+                    break
+                except Exception as e:
+                    if time.time() - start_time > GENERATION_TIMEOUT:
+                        raise TimeoutError("Test case generation timed out")
+                    time.sleep(1)  # Wait before retry
+            
+            progress_bar.progress((i + 1) / num_chunks)
+            
+            # Add a small delay to prevent rate limiting
+            time.sleep(0.5)
+        
+        status_text.text("Processing generated test cases...")
+        combined_test_cases = "\n\n".join(all_test_cases)
+        status_text.empty()
+        progress_bar.empty()
+        
+        return combined_test_cases
+        
+    except Exception as e:
+        progress_bar.empty()
+        status_text.empty()
+        st.error(f"Error generating test cases: {str(e)}")
+        return None
 
 def render_header():
     st.markdown("""
@@ -129,19 +189,16 @@ def input_section():
             key="acceptance_criteria_input"
         )
     
-    return module, scenario_type, acceptance_criteria
-
-@st.cache_data
-def generate_test_cases(_module, _acceptance_criteria, _scenario_type):
-    llm = get_llm()
-    prompt_template = get_prompt_template()
-    prompt = prompt_template.format(
-        Module=_module,
-        AcceptanceCriteria=_acceptance_criteria,
-        ScenarioType=_scenario_type
+    # Add number of test cases slider
+    num_chunks = st.slider(
+        "Number of Test Case Chunks",
+        min_value=1,
+        max_value=5,
+        value=3,
+        help="Each chunk generates 2 test cases. More chunks = more variety but longer generation time."
     )
-    response = llm.invoke(prompt)
-    return response.content if response and hasattr(response, "content") else None
+    
+    return module, scenario_type, acceptance_criteria, num_chunks
 
 def export_to_csv(df, module_name):
     csv_buffer = StringIO()
@@ -157,43 +214,39 @@ def export_to_csv(df, module_name):
     )
 
 def main():
-    # Initialize session state
     if 'generation_requested' not in st.session_state:
         st.session_state.generation_requested = False
 
-    # Header section
     render_header()
 
-    # Input section
-    module, scenario_type, acceptance_criteria = input_section()
+    module, scenario_type, acceptance_criteria, num_chunks = input_section()
 
     if st.button("Generate Test Cases", key="generate_button"):
         st.session_state.generation_requested = True
         st.session_state.module = module
         st.session_state.scenario_type = scenario_type
         st.session_state.acceptance_criteria = acceptance_criteria
+        st.session_state.num_chunks = num_chunks
 
-    # Generation section
     if st.session_state.generation_requested:
         if st.session_state.module and st.session_state.acceptance_criteria:
-            with st.spinner("Generating test cases..."):
-                test_cases = generate_test_cases(
-                    st.session_state.module,
-                    st.session_state.acceptance_criteria,
-                    st.session_state.scenario_type
-                )
-                
-                if test_cases:
-                    st.write("### Generated Test Cases:")
-                    st.write(test_cases)
+            test_cases = generate_test_cases_in_chunks(
+                st.session_state.module,
+                st.session_state.acceptance_criteria,
+                st.session_state.scenario_type,
+                st.session_state.num_chunks
+            )
+            
+            if test_cases:
+                st.write("### Generated Test Cases:")
+                st.write(test_cases)
 
-                    # Parse and export section
-                    parsed_test_cases = parse_test_cases(test_cases)
-                    if parsed_test_cases:
-                        df = pd.DataFrame(parsed_test_cases)
-                        export_to_csv(df, st.session_state.module)
-                    else:
-                        st.error("Failed to parse test cases. Please check the generated format.")
+                parsed_test_cases = parse_test_cases(test_cases)
+                if parsed_test_cases:
+                    df = pd.DataFrame(parsed_test_cases)
+                    export_to_csv(df, st.session_state.module)
+                else:
+                    st.error("Failed to parse test cases. Please check the generated format.")
         else:
             st.warning("Please fill in all required fields.")
 
