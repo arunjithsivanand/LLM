@@ -18,6 +18,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+@st.cache_data
 def parse_test_cases(text):
     """Parse the generated test cases into a structured format"""
     test_cases = []
@@ -60,32 +61,44 @@ def parse_test_cases(text):
 
     return test_cases
 
-# Initialize the language model
-llm = ChatGoogleGenerativeAI(
-    model="gemini-2.0-flash-exp",
-    temperature=0,
-    max_output_tokens=4096,
-)
+# Initialize the language model with caching
+@st.cache_resource
+def get_llm():
+    return ChatGoogleGenerativeAI(
+        model="gemini-2.0-flash-exp",
+        temperature=0,
+        max_output_tokens=4096,
+    )
 
-# Define the prompt template
-prompt_template = PromptTemplate(
-    input_variables=["Module", "AcceptanceCriteria", "ScenarioType"],
-    template=(
-        "Generate detailed test cases based on the following:\n"
-        "Module: {Module}\n"
-        "Acceptance Criteria: {AcceptanceCriteria}\n"
-        "Scenario Type: {ScenarioType}\n\n"
-        "Output each test case in this exact format:\n"
-        "Test Case ID: TC-XXX\n"
-        "Description: [Test case description]\n"
-        "Pre-conditions: [List pre-conditions]\n"
-        "Steps: [Numbered steps to execute]\n"
-        "Expected Results: [Expected outcome]\n"
-        "Post-conditions: [List post-conditions]\n"
-        "Tags: [Relevant tags]\n\n"
-        "Generate multiple test cases, with each separated by a blank line."
-    ),
-)
+# Cache the prompt template
+@st.cache_data
+def get_prompt_template():
+    return PromptTemplate(
+        input_variables=["Module", "AcceptanceCriteria", "ScenarioType"],
+        template=(
+            "Generate detailed test cases based on the following:\n"
+            "Module: {Module}\n"
+            "Acceptance Criteria: {AcceptanceCriteria}\n"
+            "Scenario Type: {ScenarioType}\n\n"
+            "Output each test case in this exact format:\n"
+            "Test Case ID: TC-XXX\n"
+            "Description: [Test case description]\n"
+            "Pre-conditions: [List pre-conditions]\n"
+            "Steps: [Numbered steps to execute]\n"
+            "Expected Results: [Expected outcome]\n"
+            "Post-conditions: [List post-conditions]\n"
+            "Tags: [Relevant tags]\n\n"
+            "Generate multiple test cases, with each separated by a blank line."
+        ),
+    )
+
+def render_header():
+    st.markdown("""
+        <h1>🧪 Advanced Test Case Generator</h1>
+        <p style='text-align: center; font-size: 1.2em; color: #666; margin-bottom: 2rem;'>
+            Generate comprehensive test cases with intelligent scenario coverage
+        </p>
+    """, unsafe_allow_html=True)
 
 def input_section():
     with st.container():
@@ -96,7 +109,8 @@ def input_section():
             module = st.text_input(
                 "Module Name",
                 placeholder="Enter module name...",
-                help="Enter the name of the module you want to test"
+                help="Enter the name of the module you want to test",
+                key="module_input"
             )
 
         with col2:
@@ -104,7 +118,8 @@ def input_section():
             scenario_type = st.selectbox(
                 "Scenario Type",
                 ["All Scenarios", "Positive Scenarios", "Negative Scenarios"],
-                help="Select the type of test scenarios to generate"
+                help="Select the type of test scenarios to generate",
+                key="scenario_type_input"
             )
 
         with col3:
@@ -113,21 +128,25 @@ def input_section():
                 "Acceptance Criteria",
                 placeholder="Enter acceptance criteria...",
                 help="Enter the acceptance criteria for the module",
-                height=100
+                height=100,
+                key="acceptance_criteria_input"
             )
     
     return module, scenario_type, acceptance_criteria
 
-def generate_test_cases(module, acceptance_criteria, scenario_type):
+@st.cache_data
+def generate_test_cases(_module, _acceptance_criteria, _scenario_type):
+    llm = get_llm()
+    prompt_template = get_prompt_template()
     prompt = prompt_template.format(
-        Module=module,
-        AcceptanceCriteria=acceptance_criteria,
-        ScenarioType=scenario_type
+        Module=_module,
+        AcceptanceCriteria=_acceptance_criteria,
+        ScenarioType=_scenario_type
     )
     response = llm.invoke(prompt)
     return response.content if response and hasattr(response, "content") else None
 
-def export_to_csv(df, module):
+def export_to_csv(df, module_name):
     csv_buffer = StringIO()
     df.to_csv(csv_buffer, index=False)
     csv_data = csv_buffer.getvalue()
@@ -135,41 +154,51 @@ def export_to_csv(df, module):
     st.download_button(
         label="Download Test Cases as CSV",
         data=csv_data,
-        file_name=f"{module}_test_cases.csv",
+        file_name=f"{module_name}_test_cases.csv",
         mime="text/csv",
+        key="download_button"
     )
 
 def main():
-    # Header section
-    with st.fragment("header"):
-        st.markdown("""
-            <h1>🧪 Advanced Test Case Generator</h1>
-            <p style='text-align: center; font-size: 1.2em; color: #666; margin-bottom: 2rem;'>
-                Generate comprehensive test cases with intelligent scenario coverage
-            </p>
-        """, unsafe_allow_html=True)
+    # Use session state to track the generation state
+    if 'generation_requested' not in st.session_state:
+        st.session_state.generation_requested = False
+    
+    # Header section with unique fragment key
+    with st.fragment('header-section-1'):
+        render_header()
 
-    # Input section
-    with st.fragment("input"):
+    # Input section with unique fragment key
+    with st.fragment('input-section-1'):
         module, scenario_type, acceptance_criteria = input_section()
 
-    # Generation section
-    with st.fragment("generation"):
-        if st.button("Generate Test Cases"):
-            if module and acceptance_criteria:
+        if st.button("Generate Test Cases", key="generate_button"):
+            st.session_state.generation_requested = True
+            st.session_state.module = module
+            st.session_state.scenario_type = scenario_type
+            st.session_state.acceptance_criteria = acceptance_criteria
+
+    # Generation section with unique fragment key
+    if st.session_state.generation_requested:
+        with st.fragment('generation-section-1'):
+            if st.session_state.module and st.session_state.acceptance_criteria:
                 with st.spinner("Generating test cases..."):
-                    test_cases = generate_test_cases(module, acceptance_criteria, scenario_type)
+                    test_cases = generate_test_cases(
+                        st.session_state.module,
+                        st.session_state.acceptance_criteria,
+                        st.session_state.scenario_type
+                    )
                     
                     if test_cases:
                         st.write("### Generated Test Cases:")
                         st.write(test_cases)
 
-                        # Parse and export section
-                        with st.fragment("export"):
+                        # Parse and export section with unique fragment key
+                        with st.fragment('export-section-1'):
                             parsed_test_cases = parse_test_cases(test_cases)
                             if parsed_test_cases:
                                 df = pd.DataFrame(parsed_test_cases)
-                                export_to_csv(df, module)
+                                export_to_csv(df, st.session_state.module)
                             else:
                                 st.error("Failed to parse test cases. Please check the generated format.")
             else:
