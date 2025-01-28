@@ -61,7 +61,6 @@ def parse_test_cases(text):
 
     return test_cases
 
-# Initialize the language model with caching
 @st.cache_resource
 def get_llm():
     return ChatGoogleGenerativeAI(
@@ -70,7 +69,6 @@ def get_llm():
         max_output_tokens=4096,
     )
 
-# Cache the prompt template
 @st.cache_data
 def get_prompt_template():
     return PromptTemplate(
@@ -101,36 +99,35 @@ def render_header():
     """, unsafe_allow_html=True)
 
 def input_section():
-    with st.container():
-        col1, col2, col3 = st.columns([1, 1, 1])
+    col1, col2, col3 = st.columns([1, 1, 1])
 
-        with col1:
-            st.markdown("##### 📦 Module Information")
-            module = st.text_input(
-                "Module Name",
-                placeholder="Enter module name...",
-                help="Enter the name of the module you want to test",
-                key="module_input"
-            )
+    with col1:
+        st.markdown("##### 📦 Module Information")
+        module = st.text_input(
+            "Module Name",
+            placeholder="Enter module name...",
+            help="Enter the name of the module you want to test",
+            key="module_input"
+        )
 
-        with col2:
-            st.markdown("##### 🎯 Test Coverage")
-            scenario_type = st.selectbox(
-                "Scenario Type",
-                ["All Scenarios", "Positive Scenarios", "Negative Scenarios"],
-                help="Select the type of test scenarios to generate",
-                key="scenario_type_input"
-            )
+    with col2:
+        st.markdown("##### 🎯 Test Coverage")
+        scenario_type = st.selectbox(
+            "Scenario Type",
+            ["All Scenarios", "Positive Scenarios", "Negative Scenarios"],
+            help="Select the type of test scenarios to generate",
+            key="scenario_type_input"
+        )
 
-        with col3:
-            st.markdown("##### ✅ Requirements")
-            acceptance_criteria = st.text_area(
-                "Acceptance Criteria",
-                placeholder="Enter acceptance criteria...",
-                help="Enter the acceptance criteria for the module",
-                height=100,
-                key="acceptance_criteria_input"
-            )
+    with col3:
+        st.markdown("##### ✅ Requirements")
+        acceptance_criteria = st.text_area(
+            "Acceptance Criteria",
+            placeholder="Enter acceptance criteria...",
+            help="Enter the acceptance criteria for the module",
+            height=100,
+            key="acceptance_criteria_input"
+        )
     
     return module, scenario_type, acceptance_criteria
 
@@ -160,49 +157,45 @@ def export_to_csv(df, module_name):
     )
 
 def main():
-    # Use session state to track the generation state
+    # Initialize session state
     if 'generation_requested' not in st.session_state:
         st.session_state.generation_requested = False
-    
-    # Header section with unique fragment key
-    with st.fragment('header-section-1'):
-        render_header()
 
-    # Input section with unique fragment key
-    with st.fragment('input-section-1'):
-        module, scenario_type, acceptance_criteria = input_section()
+    # Header section
+    render_header()
 
-        if st.button("Generate Test Cases", key="generate_button"):
-            st.session_state.generation_requested = True
-            st.session_state.module = module
-            st.session_state.scenario_type = scenario_type
-            st.session_state.acceptance_criteria = acceptance_criteria
+    # Input section
+    module, scenario_type, acceptance_criteria = input_section()
 
-    # Generation section with unique fragment key
+    if st.button("Generate Test Cases", key="generate_button"):
+        st.session_state.generation_requested = True
+        st.session_state.module = module
+        st.session_state.scenario_type = scenario_type
+        st.session_state.acceptance_criteria = acceptance_criteria
+
+    # Generation section
     if st.session_state.generation_requested:
-        with st.fragment('generation-section-1'):
-            if st.session_state.module and st.session_state.acceptance_criteria:
-                with st.spinner("Generating test cases..."):
-                    test_cases = generate_test_cases(
-                        st.session_state.module,
-                        st.session_state.acceptance_criteria,
-                        st.session_state.scenario_type
-                    )
-                    
-                    if test_cases:
-                        st.write("### Generated Test Cases:")
-                        st.write(test_cases)
+        if st.session_state.module and st.session_state.acceptance_criteria:
+            with st.spinner("Generating test cases..."):
+                test_cases = generate_test_cases(
+                    st.session_state.module,
+                    st.session_state.acceptance_criteria,
+                    st.session_state.scenario_type
+                )
+                
+                if test_cases:
+                    st.write("### Generated Test Cases:")
+                    st.write(test_cases)
 
-                        # Parse and export section with unique fragment key
-                        with st.fragment('export-section-1'):
-                            parsed_test_cases = parse_test_cases(test_cases)
-                            if parsed_test_cases:
-                                df = pd.DataFrame(parsed_test_cases)
-                                export_to_csv(df, st.session_state.module)
-                            else:
-                                st.error("Failed to parse test cases. Please check the generated format.")
-            else:
-                st.warning("Please fill in all required fields.")
+                    # Parse and export section
+                    parsed_test_cases = parse_test_cases(test_cases)
+                    if parsed_test_cases:
+                        df = pd.DataFrame(parsed_test_cases)
+                        export_to_csv(df, st.session_state.module)
+                    else:
+                        st.error("Failed to parse test cases. Please check the generated format.")
+        else:
+            st.warning("Please fill in all required fields.")
 
 if __name__ == "__main__":
     main()
