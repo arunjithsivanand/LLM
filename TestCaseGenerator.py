@@ -99,7 +99,7 @@ prompt_template = PromptTemplate(
 def main():
     # Header with gradient background
     st.markdown("""
-        <h1>🧪 Advanced Test Case Generator</h1>
+        <h1>🧪Test Case Generator</h1>
         <p style='text-align: center; font-size: 1.2em; color: #666; margin-bottom: 2rem;'>
             Generate comprehensive test cases with intelligent scenario coverage
         </p>
