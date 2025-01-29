@@ -12,15 +12,15 @@ load_dotenv()
 GOOGLE_API_KEY = os.getenv("GEMINI_API_KEY")
 print(GOOGLE_API_KEY)
 async def browser_search() -> str:
-   task = f"""Navigate to https://padev.core42.protal.biz/chat and perform comprehensive end-to-end testing:
+   task = f"""Navigate to and perform comprehensive end-to-end testing:
    1. Initial Page Load Test:
    - Verify all elements are properly loaded
    - Check responsiveness of the login page
    - Validate all links are working
    2. Login Process:
    - Click on the Sign In button
-   - Enter email: prod_data@dagster.com
-   - Enter password: gTA%2*pYET7FJ^3t
+   - Enter email: 
+   - Enter password: 
    - Click the login button
    - Verify successful login
    3. Post-Login Testing:
