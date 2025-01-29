@@ -101,7 +101,7 @@ def main():
     st.markdown("""
         <h1>🧪Test Case Generator</h1>
         <p style='text-align: center; font-size: 1.2em; color: #666; margin-bottom: 2rem;'>
-            Generate comprehensive test cases with intelligent scenario coverage
+            **************************************************************
         </p>
     """, unsafe_allow_html=True)
 
