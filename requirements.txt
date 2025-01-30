@@ -12,3 +12,4 @@ plotly
 pydantic
 asyncio
 agent
+browser_use
