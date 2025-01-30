@@ -85,13 +85,26 @@ async def run_test(test_case: TestCase) -> str:
     agent = Agent(task=task, llm=llm)
 
     try:
+        print("Starting test execution...")  # Debugging log
         history = await agent.run()
+        
+        # Check if result is None or empty
+        if not history:
+            print("Agent run did not return any history.")  # Debugging log
+            return None
+        
         result = history.final_result()
+        
+        # Check if the final result is valid
         if not result:
-            raise ValueError("No result returned from the agent.")
+            print("Final result from agent is empty.")  # Debugging log
+            return None
+        
+        print("Test execution completed successfully.")  # Debugging log
         return result
+
     except Exception as e:
-        print(f"Error during test execution: {e}")
+        print(f"Error during test execution: {str(e)}")  # Debugging log
         return None
 
 
