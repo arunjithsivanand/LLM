@@ -233,6 +233,12 @@ def main():
                     for issue in issues:
                         st.markdown(f"- {issue}")
 
+                    # Determine if all tests passed
+                    if not issues:
+                        st.success("All tests passed successfully!")
+                    else:
+                        st.error("There were issues during testing. Please review the findings.")
+
                 # Download button for results
                 st.download_button(
                     label="Download Results",
