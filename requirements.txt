@@ -9,3 +9,5 @@ pandas
 xlsxwriter
 openpyxl
 plotly
+pydantic
+asyncio
