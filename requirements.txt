@@ -11,3 +11,4 @@ openpyxl
 plotly
 pydantic
 asyncio
+agent
