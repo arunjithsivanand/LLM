@@ -97,7 +97,9 @@ async def run_test(test_case: TestCase) -> str:
 
 def run_test_sync(test_case: TestCase) -> str:
     """Wrapper to run the async function synchronously"""
-    loop = asyncio.get_event_loop()
+    # Create a new event loop for this thread
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     return loop.run_until_complete(run_test(test_case))
 
 
