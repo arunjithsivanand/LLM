@@ -1,6 +1,7 @@
 from typing import List, Optional
 from pydantic import BaseModel
 import os
+from playwright.sync_api import sync_playwright
 from browser_use import Agent, Controller
 # from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
